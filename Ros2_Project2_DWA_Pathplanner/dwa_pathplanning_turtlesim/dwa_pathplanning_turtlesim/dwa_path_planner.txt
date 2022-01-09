@@ -1,0 +1,156 @@
+# /turtle1/pose
+# /turtle2/pose
+# /turtle2/cmd_vel
+
+# service example
+
+import sys
+import argparse
+
+from math import pi
+
+from turtlesim.srv import Spawn
+from msg_pkg.msg import RVD
+from geometry_msgs.msg import Vector3
+from geometry_msgs.msg import Twist
+
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import QoSDurabilityPolicy
+from rclpy.qos import QoSHistoryPolicy
+from rclpy.qos import QoSProfile
+from rclpy.qos import QoSReliabilityPolicy
+
+
+
+class DWA_Planner(Node):
+
+    def __init__(self, x, y, theta, name):
+        super().__init__('DWA_Planner')
+
+        self.x = float(x)
+        self.y = float(y)
+        self.theta = float(theta)
+        self.name = name
+
+        self.declare_parameter('qos_depth', 10)
+        qos_depth = self.get_parameter('qos_depth').value
+        
+        qos_profile = QoSProfile(
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=qos_depth,
+            durability=QoSDurabilityPolicy.VOLATILE)
+
+###################################
+
+        # self.DWA_Planner_sub = self.create_subscription(
+        #     RVD,
+        #     'circular_motion',
+        #     self.subscribe,
+        #     qos_profile)
+        
+        # self.DWA_Planner_pub = self.create_publisher(
+        #     Twist,
+        #     '/turtle1/cmd_vel',
+        #     qos_profile)
+
+        self.DWA_Planner_client = self.create_client(
+            Spawn,
+            '/spawn')
+        
+        while not self.DWA_Planner_client.wait_for_service(timeout_sec=0.1):
+            self.get_logger().warning('The /spawn service not available.')
+
+        # self.timer = self.create_timer(1, self.publish)
+
+        # self.count = 0
+
+###################################
+
+    # def subscribe(self):
+        
+
+    # def publish(self):
+
+
+    def send_request(self):
+        request = Spawn.Request()
+        request.x, request.y, request.theta, request.name = self.x, self.y, self.theta, self.name
+        futures = self.DWA_Planner_client.call_async(request)
+        return futures
+
+###################################
+        
+
+def argment_parser():
+    parser = argparse.ArgumentParser(description='Insert --r=radius(m, float), --v=linear velocity(m/s, float), --cw=direction(t if cw, f if ccw.')
+    parser.add_argument('-r', help='Radius // Unit: m // Ex) 3.2m -> --r=3.2', type=float, dest='radius', default=1.0)
+    parser.add_argument('-v', help='Linear Velocity // Unit: m/s // Ex) 1.7m/s -> --v=1.7', type=float, dest='velocity', default=0.0)
+    parser.add_argument('-cw', help='Direction // Ex) clockwise -> --cw=t', type=str, dest='direction', default='t')
+    
+    args = parser.parse_args()
+
+    if(args.direction == 't'):
+        cw = True
+    elif(args.direction == 'f'):
+        cw = False
+
+    return args.radius, args.velocity, cw
+
+
+
+########main 함수 수정
+def main(args=None):
+    rclpy.init(args=args)
+
+    x = 1
+    y = 1
+    theta = 90 / 180 * pi
+    name = 'turtle2'
+    
+    dwa_planner = DWA_Planner(x, y, theta, name)
+    future = dwa_planner.send_request()
+    dwa_planner.get_logger().info(
+                            'Result: {}'.format(future))
+    user_trigger = True
+    try:
+        while rclpy.ok():
+            if user_trigger is True:
+                rclpy.spin_once(dwa_planner)
+                if future.done():
+                    try:
+                        service_response = future.result()
+                    except Exception as e:  # noqa: B902
+                        dwa_planner.get_logger().warn('Service call failed: {}'.format(str(e)))
+                    else:
+                        dwa_planner.get_logger().info(
+                            'Result: {}'.format(service_response.name))
+                        user_trigger = False
+            else:
+                input('Press Enter for next service call.\n')
+                future = dwa_planner.send_request()
+                user_trigger = True
+
+    except KeyboardInterrupt:
+        dwa_planner.get_logger().info('Keyboard Interrupt (SIGINT)')
+
+    dwa_planner.destroy_node()
+    rclpy.shutdown()
+
+
+    # try:
+    #     dwa_planner = DWA_Planner(x, y, theta, name)
+    #     try:
+    #         rclpy.spin(dwa_planner)
+    #     except KeyboardInterrupt:
+    #         dwa_planner.get_logger().info('Keyboard Interrupt (SIGINT)')
+    #     finally:
+    #         dwa_planner.destroy_node()
+    # finally:
+    #     rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+    #x, y, theta -> float, name -> string
