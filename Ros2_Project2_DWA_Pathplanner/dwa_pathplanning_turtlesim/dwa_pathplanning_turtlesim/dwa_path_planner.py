@@ -1,6 +1,6 @@
-# /turtle1/pose
+# /turtle1/pose 60hz x y theta lin_vel ang_vel
 # /turtle2/pose
-# /turtle2/cmd_vel
+# /turtle2/cmd_vel 30hz max
 
 import dwa_pathplanning_turtlesim.dynamic_window_approach as dwa
 
@@ -14,6 +14,7 @@ import numpy as np
 from msg_pkg.msg import RVD
 from geometry_msgs.msg import Vector3
 from geometry_msgs.msg import Twist
+from turtlesim.msg import Pose
 
 import rclpy
 from rclpy.node import Node
@@ -27,23 +28,15 @@ class DWA_Planner(Node):
     def __init__(self):
         super().__init__('DWA_Planner')
 
-        # self.radius = radius
-        # self.lin_vel = lin_vel
-        # self.cw = cw
+        # for Twist
+        self.twist = Twist()
+        self.lin_vec = Vector3()
+        self.ang_vec = Vector3()
 
-        # self.lin_x = 0.0
-        # self.lin_y = 0.0
-        # self.lin_z = 0.0
-        # self.ang_x = 0.0
-        # self.ang_y = 0.0
-        # self.ang_z = 0.0
+        # for Pose
+        self.pose = Pose()
 
-        self.lin_vec = None
-        self.ang_vec = None
-        self.twist = None
-
-###################################
-
+        # Variables from dynammic_window_approach
         # initial state [x(m), y(m), yaw(rad), v(m/s), omega(rad/s)]
         self.x = np.array([0.0, 0.0, math.pi / 8.0, 0.0, 0.0])
         # goal position [x(m), y(m)]
@@ -55,9 +48,11 @@ class DWA_Planner(Node):
 
         self.config = dwa.Config()
         self.config.robot_type = dwa.RobotType.circle
-        self.ob = self.config.ob
+        # *************ob has to be changed later*******************************************************
+        self.ob = np.array([[0, 0]])
+        # self.ob = self.config.ob
 
-        # input [forward speed, yaw_rate]
+        # input [forward speed(m/s), yaw_rate(rad/s)]
         self.u = []
         self.predicted_trajectory = []
         self.dist_to_goal = 0
@@ -77,11 +72,11 @@ class DWA_Planner(Node):
 
 ###################################
 
-        # self.DWA_Planner_sub = self.create_subscription(
-        #     RVD,
-        #     'circular_motion',
-        #     self.subscribe,
-        #     qos_profile)
+        self.DWA_Planner_sub = self.create_subscription(
+            Pose,
+            '/turtle1/pose',
+            self.subscribe,
+            qos_profile)
         
         self.DWA_Planner_pub = self.create_publisher(
             Twist,
@@ -93,22 +88,23 @@ class DWA_Planner(Node):
 
         self.count = 0
 
-###################################
 
-    # def subscribe(self, msg):
-    #     self.radius = msg.radius
-    #     self.lin_vel = msg.linear_velocity
-    #     self.cw = msg.clockwise
+    def subscribe(self, msg):
+        self.pose.x = msg.x
+        self.pose.y = msg.y
+        self.pose.theta = msg.theta
+        self.pose.linear_velocity = msg.linear_velocity
+        self.pose.angular_velocity = msg.angular_velocity
+
 
     def publish(self):
-        self.twist = Twist()
-        self.lin_vec = Vector3()
-        self.ang_vec = Vector3()
+
 
 ###################################
 
         self.u, self.predicted_trajectory = dwa.dwa_control(self.x, self.config, self.goal[self.idx_of_goal], self.ob)
-        self.x = dwa.motion(self.x, self.u, self.config.dt)  # simulate robot
+
+        self.x[0], self.x[1], self.x[2], self.x[3], self.x[4] = self.pose.x, self.pose.y, self.pose.theta, self.pose.linear_velocity, self.pose.angular_velocity
 
         # check reaching goal
         self.dist_to_goal = math.hypot(self.x[0] - self.goal[self.idx_of_goal][0], self.x[1] - self.goal[self.idx_of_goal][1])
