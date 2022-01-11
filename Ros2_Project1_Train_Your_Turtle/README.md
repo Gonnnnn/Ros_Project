@@ -26,11 +26,11 @@ An rqt-graph will be added. Sry im too lazy :D
 
 # How to Use
 ## First, you do
-    git clone https://github.com/Gonnnnn/Ros2_Project1.git
+    git clone https://github.com/Gonnnnn/Ros_Project.git
 
 And then move 'msg_pkg' and 'yeet_go_run_my_turtle' to src directory under your workspace(commonly, it's ~/robot_ws)
 
-    cd ./Ros2_Project1
+    cd ./Ros2_Project1_Train_Your_Turtle
     mv /msg_pkg ~/{workspace}/src
     mv /yeet_go_run_my_turtle ~/{workspace}/src
 
